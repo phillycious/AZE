@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arbeitszeiterfassung</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            padding: 20px; 
+            background: transparent; 
+        }
+        table { 
+            width: 50%; 
+            margin: 20px auto; 
+            border-collapse: collapse; 
+            background: rgba(255, 255, 255, 0.9); 
+            border-radius: 10px; 
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); 
+        }
+        th, td { padding: 12px; text-align: center; }
+        th { 
+            background: linear-gradient(to bottom, #00FF00, #000000); 
+            color: white; 
+            border-top-left-radius: 10px; 
+            border-top-right-radius: 10px; 
+        }
+        button { 
+            padding: 10px 15px; 
+            font-size: 14px; 
+            border: none; 
+            border-radius: 15px; 
+            background: linear-gradient(145deg, #6ee7b7, #3b82f6);
+            color: white; 
+            cursor: pointer; 
+            transition: all 0.3s ease;
+        }
+        button:hover { background: linear-gradient(145deg, #3b82f6, #6ee7b7); }
+        button:disabled { background: gray; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <h2>Arbeitszeiterfassung</h2>
+    <table>
+        <tr>
+            <th>Datum</th>
+            <th>Name</th>
+            <th>Start</th>
+            <th>Pause</th>
+            <th>Ende</th>
+        </tr>
+        <tbody id="table-body"></tbody>
+    </table>
+
+    <script>
+        const API_URL = "DEINE_APPS_SCRIPT_URL"; // 🔒 Sicher verwahrt
+        const names = ["Morris", "Jojo", "Jan", "Piet", "Philly", "Darija"];
+        let records = JSON.parse(localStorage.getItem("workRecords")) || {};
+
+        function getCurrentTime() {
+            return new Date().toLocaleTimeString();
+        }
+
+        function updateTable() {
+            const tableBody = document.getElementById("table-body");
+            tableBody.innerHTML = "";
+
+            names.forEach(name => {
+                let date = new Date().toLocaleDateString();
+                let userData = records[name] || {};
+
+                tableBody.innerHTML += `
+                    <tr>
+                        <td>${date}</td>
+                        <td>${name}</td>
+                        <td><button onclick="startWork('${name}')" ${userData.startTime ? "disabled" : ""}>Start</button></td>
+                        <td><button onclick="togglePause('${name}')" ${!userData.startTime || userData.endTime ? "disabled" : ""}>Pause</button></td>
+                        <td><button onclick="endWork('${name}')" ${!userData.startTime || userData.endTime ? "disabled" : ""}>Ende</button></td>
+                    </tr>
+                `;
+            });
+        }
+
+        function saveRecords() {
+            localStorage.setItem("workRecords", JSON.stringify(records));
+        }
+
+        function startWork(name) {
+            if (records[name]?.startTime) {
+                alert(name + " hat bereits begonnen!");
+                return;
+            }
+            records[name] = { startTime: getCurrentTime(), pauses: [], endTime: null };
+            saveRecords();
+            updateTable();
+            alert(name + " hat gestartet.");
+        }
+
+        function togglePause(name) {
+            if (!records[name] || records[name].endTime) return;
+
+            let userData = records[name];
+            if (!userData.pauseStart) {
+                userData.pauseStart = getCurrentTime();
+                alert(name + " ist in Pause.");
+            } else {
+                userData.pauses.push({ start: userData.pauseStart, end: getCurrentTime() });
+                userData.pauseStart = null;
+                alert(name + " hat die Pause beendet.");
+            }
+            saveRecords();
+            updateTable();
+        }
+
+        function endWork(name) {
+            if (!records[name] || records[name].endTime) {
+                alert("Arbeitszeit für " + name + " ist bereits beendet oder hat nie begonnen!");
+                return;
+            }
+            records[name].endTime = getCurrentTime();
+            saveRecords();
+            updateTable();
+
+            // **Daten an Server senden**
+            fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, ...records[name] })
+            })
+            .then(response => response.text())
+            .then(data => alert(name + " hat beendet. Daten gespeichert!"))
+            .catch(error => alert("Fehler beim Speichern: " + error));
+        }
+
+        updateTable(); // Seite initialisieren mit gespeicherten Daten
+    </script>
+</body>
+</html>
